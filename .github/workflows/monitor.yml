@@ -1,32 +1,27 @@
-name: Monitor Tazkarti
+name: Check Tickets Status
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
+  workflow_dispatch:
 
 jobs:
-  monitor:
+  check-tickets:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 22
+          node-version: '18'
 
       - name: Install dependencies
         run: npm install
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run Tazkarti monitor
-        run: npm run monitor
+      - name: Run Ticket Monitor Script
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          TAZKARTI_URL: https://www.tazkarti.com/#/matches
-          TEST_MODE: "true"
+          TEST_MODE: "false"
+        run: node monitor.js
