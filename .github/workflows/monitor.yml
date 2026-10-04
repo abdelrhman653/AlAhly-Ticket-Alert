@@ -27,6 +27,6 @@ jobs:
       - name: Run Tazkarti monitor
         run: npm run monitor
         env:
-  FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-  TAZKARTI_URL: https://www.tazkarti.com/#/matches
-  TEST_MODE: "true"
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          TAZKARTI_URL: https://www.tazkarti.com/#/matches
+          TEST_MODE: "true"
