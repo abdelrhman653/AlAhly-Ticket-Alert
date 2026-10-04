@@ -97,16 +97,6 @@
       line-height:1.7
     }
 
-    .test-badge{
-      display:inline-block;
-      background:#7a4d00;
-      color:#ffd166;
-      padding:6px 10px;
-      border-radius:10px;
-      font-size:12px;
-      font-weight:bold;
-      margin-bottom:10px
-    }
   </style>
 </head>
 
@@ -117,10 +107,6 @@
   <div class="card">
 
     <h1>🔴 تنبيه تذاكر الأهلي</h1>
-
-    <div class="test-badge">
-      🧪 وضع الاختبار — مباراة مصر
-    </div>
 
     <p>
       فعّل الإشعارات وسيتم تنبيهك عند اكتشاف توفر تذاكر
@@ -149,15 +135,14 @@
 
   <div class="card">
 
-    <h3>🇪🇬 حالة مباراة مصر</h3>
+    <h3>🔴 حالة مراقبة الأهلي</h3>
 
     <div id="monitorStatus" class="status">
       جاري استلام حالة المراقبة...
     </div>
 
     <small>
-      هذه الصفحة تعرض حاليًا حالة الاختبار من
-      monitorState/test.
+      هذه الصفحة تعرض آخر حالة فعلية لمراقبة تذاكر الأهلي.
     </small>
 
   </div>
@@ -282,9 +267,9 @@ btn.addEventListener("click", async () => {
 
     const registration =
       await navigator.serviceWorker.register(
-        "/AlAhly-Ticket-Alert/firebase-messaging-sw.js",
+        "/firebase-messaging-sw.js",
         {
-          scope: "/AlAhly-Ticket-Alert/"
+          scope: "/"
         }
       );
 
@@ -343,16 +328,11 @@ btn.addEventListener("click", async () => {
 
 
 /*
-  قراءة حالة اختبار مباراة مصر
-
-  monitor.js في TEST_MODE
-  يحفظ الحالة في:
-
-  monitorState/test
+  قراءة حالة المراقبة الفعلية للأهلي
 */
 
 onSnapshot(
-  doc(db, "monitorState", "test"),
+  doc(db, "monitorState", "alahly"),
   snap => {
 
     if (!snap.exists()) {

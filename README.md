@@ -1,6 +1,6 @@
 # AlAhly Ticket Alert
 
-مشروع تجريبي لمراقبة صفحة تذاكر تذكرتي وإرسال Web Push عند اكتشاف توفر محتمل.
+مشروع لمراقبة صفحة تذاكر تذكرتي وإرسال Web Push عند اكتشاف توفر محتمل لتذاكر الأهلي.
 
 ## تم إعداد Firebase
 - Project ID: alahly-ticket-alert

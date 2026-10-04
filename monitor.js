@@ -16,16 +16,6 @@ const url =
 process.env.TAZKARTI_URL ||
 "https://www.tazkarti.com/#/matches";
 
-/*
-TEST_MODE=true
-= اختبار الإشعارات باستخدام مباراة مصر
-
-TEST_MODE=false أو غير موجود
-= الوضع الطبيعي لمراقبة الأهلي
-*/
-const TEST_MODE =
-String(process.env.TEST_MODE || "false").toLowerCase() === "true";
-
 const normalize = s =>
 (s || "")
 .replace(/\s+/g, " ")
@@ -41,16 +31,6 @@ const alAhlyWords = [
 "al ahly",
 "al-ahly",
 "ahly"
-];
-
-/*
-وضع الاختبار: مصر
-*/
-const egyptWords = [
-"مصر",
-"egypt",
-"egypt national team",
-"منتخب مصر"
 ];
 
 /*
@@ -93,11 +73,7 @@ try {
 
 const page = await browser.newPage();
 
-console.log(
-TEST_MODE
-? "🧪 TEST MODE: مراقبة مباراة مصر"
-: "🔴 NORMAL MODE: مراقبة الأهلي"
-);
+console.log("🔴 PRODUCTION MODE: مراقبة تذاكر الأهلي");
 
 console.log("🌐 فتح تذكرتي:", url);
 
@@ -121,15 +97,10 @@ const text =
 normalize(raw);
 
 /*
-اختيار الفريق حسب وضع التشغيل
+البحث عن مباراة الأهلي
 */
-const targetWords =
-TEST_MODE
-? egyptWords
-: alAhlyWords;
-
 const teamFound =
-containsAny(text, targetWords);
+containsAny(text, alAhlyWords);
 
 const hasAvailable =
 containsAny(text, availableWords);
@@ -145,13 +116,8 @@ hasAvailable &&
 /*
 اسم حالة المراقبة
 */
-const stateName =
-TEST_MODE
-? "test"
-: "alahly";
-
 const stateRef =
-db.doc("monitorState/${stateName}");
+db.doc("monitorState/alahly");
 
 /*
 قراءة الحالة السابقة
@@ -251,13 +217,9 @@ for (const token of tokens) {
 
       notification: {
 
-        title: TEST_MODE
-          ? "🧪 اختبار إشعارات تذكرتي"
-          : "🔴 تذاكر الأهلي متاحة",
+        title: "🔴 تذاكر الأهلي متاحة",
 
-        body: TEST_MODE
-          ? "🇪🇬 تم اكتشاف مباراة مصر مع توفر تذاكر للحجز الآن 🔔"
-          : "🎟️ تم اكتشاف توفر محتمل لتذاكر الأهلي. افتح تذكرتي الآن."
+        body: "🎟️ تم اكتشاف توفر محتمل لتذاكر الأهلي. افتح تذكرتي الآن."
       },
 
 
@@ -353,10 +315,7 @@ available,
   checkedAt:
     admin.firestore.FieldValue.serverTimestamp(),
 
-  mode:
-    TEST_MODE
-      ? "test"
-      : "alahly",
+  mode: "alahly",
 
   textSample:
     raw.slice(0, 1200)
@@ -374,10 +333,7 @@ console.log(
 console.log(
 JSON.stringify({
 
-  mode:
-    TEST_MODE
-      ? "TEST"
-      : "ALAHLY",
+  mode: "ALAHLY",
 
   teamFound,
 
