@@ -1,14 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /monitorState/alahly {
+    // Public match/status data is readable by the site.
+    match /matches/{matchId} {
       allow read: if true;
       allow write: if false;
     }
 
+    match /monitorState/{stateId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // The browser needs to create/update only the subscription document
+    // identified by its own FCM token. Admin SDK writes from GitHub Actions
+    // bypass these client rules.
     match /pushSubscriptions/{token} {
-      allow create, update: if true;
+      allow create, update: if request.resource.data.token == token
+        && request.resource.data.selectedTeams is list
+        && request.resource.data.selectedMatches is list
+        && request.resource.data.selectedTeams.size() <= 100
+        && request.resource.data.selectedMatches.size() <= 100;
       allow read, delete: if false;
+    }
+
+    // Notification state is server-only.
+    match /notificationStates/{stateId} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

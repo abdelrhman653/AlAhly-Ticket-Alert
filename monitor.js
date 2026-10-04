@@ -1,266 +1,219 @@
-// التهيئة والتكوين للمشروع
-const firebaseConfig = {
-    apiKey: "AIzaSyD-PlaceholderKeyForSafety",
-    authDomain: "alahly-ticket-alert.firebaseapp.com",
-    projectId: "alahly-ticket-alert",
-    storageBucket: "alahly-ticket-alert.appspot.com",
-    messagingSenderId: "1234567890",
-    appId: "1:1234567890:web:abcdef"
-};
+import { chromium } from "playwright";
+import admin from "firebase-admin";
 
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "{}");
+admin.initializeApp({credential: admin.credential.cert(serviceAccount)});
+const db = admin.firestore();
+const messaging = admin.messaging();
+
+const url = process.env.TAZKARTI_URL || "https://www.tazkarti.com/#/matches";
+const TEST_MODE = String(process.env.TEST_MODE || "false").toLowerCase() === "true";
+
+const normalize = s => (s || "").toString()
+  .replace(/\s+/g, " ")
+  .replace(/[أإآ]/g, "ا")
+  .trim()
+  .toLowerCase();
+
+const key = s => normalize(s)
+  .replace(/[^a-z0-9\u0600-\u06ff]+/g, "-")
+  .replace(/^-|-$/g, "");
+
+const unavailableWords = ["غير متاح","غير متاحة","sold out","نفدت","لا توجد تذاكر","not available"];
+const availableWords = ["احجز","حجز","شراء","book ticket","book now","buy","available","متاح","متاحة"];
+
+const containsAny = (text, words) => words.some(w => normalize(text).includes(normalize(w)));
+
+function cleanTeam(s) {
+  return (s || "").replace(/\b(book|buy|available|sold out)\b/ig,"")
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g,"")
+    .replace(/\s+/g," ").trim().replace(/^[|•:–—-]+|[|•:–—-]+$/g,"").trim();
 }
 
-const isNode = typeof window === 'undefined';
-let messaging, db, admin;
+function parseTeams(text) {
+  const lines = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
 
-if (isNode) {
-    const admin = require('firebase-admin');
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
-    if (!admin.apps.length) {
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-        });
+  for (const line of lines) {
+    const m = line.match(/(.{2,50}?)\s+(?:vs\.?|v\.?|×|x)\s+(.{2,50}?)(?=\s*(?:\||•|$))/i);
+    if (m) {
+      const a=cleanTeam(m[1]), b=cleanTeam(m[2]);
+      if(a&&b&&a.length<60&&b.length<60) return [a,b];
     }
-    db = admin.firestore();
-} else {
-    messaging = firebase.messaging();
-    db = firebase.firestore();
+  }
+
+  const compact = text
+    .replace(/\b(?:book\s+ticket|book\s+now|book|buy|available|sold\s*out|احجز|حجز|شراء|متاح|متاحة)\b/ig," ")
+    .replace(/\s+/g," ").trim();
+
+  const patterns = [
+    /(.{2,50}?)\s+(?:vs\.?|v\.?|×|x)\s+(.{2,50}?)(?=\s*(?:\||•|\d{1,2}[\/-]\d{1,2}|$))/i,
+    /(.{2,50}?)\s+[-–—]\s+(.{2,50}?)(?=\s*(?:\||•|\d{1,2}[\/-]\d{1,2}|$))/i
+  ];
+  for (const re of patterns) {
+    const m=compact.match(re);
+    if(m){
+      const a=cleanTeam(m[1]),b=cleanTeam(m[2]);
+      if(a&&b&&a.length<60&&b.length<60) return [a,b];
+    }
+  }
+
+  const candidates=lines.filter(line=>{
+    const n=normalize(line);
+    return line.length>=2 && line.length<=60 &&
+      !containsAny(n,availableWords) &&
+      !containsAny(n,unavailableWords) &&
+      !/\b\d{1,2}[\/-]\d{1,2}\b/.test(line) &&
+      !/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/.test(line) &&
+      !/استاد|ملعب|stadium|venue|arena/i.test(line);
+  });
+  if(candidates.length>=2) return [cleanTeam(candidates[0]),cleanTeam(candidates[1])];
+  return [null,null];
+}
+function parseDateTime(text) {
+  const date=(text.match(/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b/)||[])[0]||"";
+  const time=(text.match(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/)||[])[0]||"";
+  return {date,time};
 }
 
-const VAPID_KEY = "BAYxVRbvvtkasJKgnU0Ja62KhC7aqsjv2JBEdrinMHc0NywavCwCfucZfX00mq8UMYDe7jV-gLzMijc9ABAlVYQ";
+function makeId(home,away,text) {
+  return key(`${home}-${away}-${parseDateTime(text).date||text.slice(0,50)}`);
+}
 
-let currentDeviceToken = null;
-let selectedTeamState = "الأهلي"; // تعيين الأهلي كفريق افتراضي نشط فوراً
-let selectedMatchState = null;
+async function extractMatches(page) {
+  return page.evaluate(({availableWords, unavailableWords}) => {
+    const norm=s=>(s||"").replace(/\s+/g," ").trim().toLowerCase();
+    const avail=availableWords.map(norm), unavail=unavailableWords.map(norm);
+    const isAvail=t=>avail.some(w=>norm(t).includes(w)) && !unavail.some(w=>norm(t).includes(w));
+    const nodes=[...document.querySelectorAll("a,button,[role='button']")];
+    const candidates=[];
+    for(const node of nodes){
+      const label=(node.innerText||node.textContent||"").trim();
+      if(!label) continue;
+      let el=node, best=null;
+      for(let i=0;i<5&&el;i++,el=el.parentElement){
+        const text=(el.innerText||"").trim();
+        if(text.length>=20&&text.length<=900){best=text;if(isAvail(text))break}
+      }
+      if(best) candidates.push({text:best,booking:isAvail(best)});
+    }
+    const cards=[...document.querySelectorAll("[class*='match'],[class*='event'],[class*='card']")].map(el=>({text:(el.innerText||"").trim(),booking:isAvail(el.innerText||"")})).filter(x=>x.text.length>=20&&x.text.length<=900);
+    return [...candidates,...cards].slice(0,300);
+  },{availableWords,unavailableWords});
+}
 
-if (!isNode) {
-    document.addEventListener("DOMContentLoaded", () => {
-        initNotifications();
-        setupUIEvents();
-        // تحديث واجهة المراقبة فور فتح الموقع بالفريق الافتراضي
-        updateSelectedTeamUI();
+function dedupeMatches(raw) {
+  const out=new Map();
+  for(const item of raw){
+    const text=item.text.replace(/\s+/g," ").trim();
+    const [home,away]=parseTeams(text);
+    if(!home||!away) continue;
+    const {date,time}=parseDateTime(text);
+    const unavailable=containsAny(text,unavailableWords);
+    const available=Boolean(item.booking)&&!unavailable;
+    const venueLine=(text.split(/[\n|•]/).find(x=>/استاد|stadium|arena|ملعب/i.test(x))||"").trim();
+    const id=makeId(home,away,text);
+    const previous=out.get(id);
+    out.set(id,{
+      id,homeTeam:home,awayTeam:away,date,time,
+      venue:venueLine.replace(/^(الملعب|stadium|venue)\s*[:：-]?\s*/i,"")||"الملعب غير محدد",
+      available:previous?previous.available||available:available,
+      sourceText:text.slice(0,1500)
     });
+  }
+  return [...out.values()];
 }
 
-async function initNotifications() {
-    const notificationArea = document.getElementById("notificationArea");
-    try {
-        if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-            notificationArea.innerHTML = `<span class="status-badge blocked">⚠️ متصفحك لا يدعم الإشعارات</span>`;
-            return;
-        }
+async function sendForMatch(match) {
+  const subs=await db.collection("pushSubscriptions").get();
+  let sent=0;
+  for(const sub of subs.docs){
+    const d=sub.data(), teams=Array.isArray(d.selectedTeams)?d.selectedTeams:[], matches=Array.isArray(d.selectedMatches)?d.selectedMatches:[];
+    const interested=matches.includes(match.id) || teams.includes(key(match.homeTeam)) || teams.includes(key(match.awayTeam));
+    if(!interested) continue;
 
-        const permission = Notification.permission;
-        if (permission === "granted") {
-            notificationArea.innerHTML = `
-                <div style="color: var(--accent); font-weight:700; margin-bottom:4px;">✅ الإشعارات مفعلة</div>
-                <div style="font-size:0.8rem; color:var(--text-muted);">جهازك مسجل لاستقبال تنبيهات توفر التذاكر.</div>
-            `;
-            registerServiceWorkerAndGetToken();
-        } else if (permission === "default") {
-            notificationArea.innerHTML = `
-                <div style="margin-bottom:8px; font-size:0.85rem;">التنبيهات غير مفعلة حالياً</div>
-                <button class="btn-action" id="enableNotifBtn">🔔 تفعيل الإشعارات</button>
-            `;
-            document.getElementById("enableNotifBtn").addEventListener("click", async () => {
-                await Notification.requestPermission();
-                initNotifications();
-            });
-        } else {
-            notificationArea.innerHTML = `
-                <span class="status-badge blocked">⚠️ الإشعارات محظورة</span>
-                <p style="font-size:0.8rem; margin-top:6px; color:var(--text-muted);">اسمح بالإشعارات من إعدادات المتصفح حتى تستقبل التنبيهات.</p>
-            `;
-        }
-    } catch (e) {
-        console.error("Error in initNotifications:", e);
-        notificationArea.innerHTML = `<span class="status-badge blocked">⚠️ حدث خطأ في التحقق من الإشعارات</span>`;
-    }
-}
+    const stateId=key(`${sub.id}-${match.id}`);
+    const stateRef=db.doc(`notificationStates/${stateId}`);
+    let shouldNotify=false;
+    let claimed=false;
+    await db.runTransaction(async tx=>{
+      const snap=await tx.get(stateRef);
+      const state=snap.exists?snap.data():{};
+      const previous=typeof state.available==="boolean" ? Boolean(state.available) : false;
+      const claimAt=state.claimedAt?.toMillis ? state.claimedAt.toMillis() : 0;
+      const claimFresh=claimAt && (Date.now()-claimAt < 10*60*1000);
 
-async function registerServiceWorkerAndGetToken() {
-    try {
-        const registration = await navigator.serviceWorker.register('/AlAhly-Ticket-Alert/firebase-messaging-sw.js');
-        currentDeviceToken = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
-        if (currentDeviceToken) {
-            await syncUserSubscriptionToFirestore();
-            listenToUserSubscriptionChanges();
-        }
-    } catch (error) {
-        console.error("Error during token retrieval:", error);
-    }
-}
-
-async function syncUserSubscriptionToFirestore() {
-    if (!currentDeviceToken) return;
-    try {
-        const docRef = db.collection("pushSubscriptions").doc(currentDeviceToken);
-        const doc = await docRef.get();
-        if (!doc.exists) {
-            await docRef.set({
-                token: currentDeviceToken,
-                selectedTeams: [selectedTeamState],
-                selectedMatches: selectedMatchState ? [selectedMatchState] : [],
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        } else {
-            await docRef.update({
-                selectedTeams: [selectedTeamState],
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        }
-    } catch (e) {
-        console.error("Error syncing to Firestore:", e);
-    }
-}
-
-function setupUIEvents() {
-    const teamButtons = document.querySelectorAll(".team-btn");
-    teamButtons.forEach(btn => {
-        // تحديد زر الأهلي افتراضياً في الشكل
-        if(btn.getAttribute("data-team") === "الأهلي") {
-            btn.classList.add("active");
-        }
-
-        btn.addEventListener("click", () => {
-            teamButtons.forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            selectedTeamState = btn.getAttribute("data-team");
-            updateSelectedTeamUI();
-        });
+      shouldNotify=match.available&&!previous&&!claimFresh;
+      if(!match.available){
+        tx.set(stateRef,{available:false,claimedAt:null,token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
+      } else if(shouldNotify){
+        claimed=true;
+        tx.set(stateRef,{available:false,claimedAt:admin.firestore.Timestamp.now(),token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
+      }
     });
 
-    const searchInput = document.getElementById("teamSearch");
-    if (searchInput) {
-        searchInput.addEventListener("input", (e) => {
-            const val = e.target.value.trim();
-            if(val.length > 0) {
-                teamButtons.forEach(b => b.classList.remove("active"));
-                selectedTeamState = val;
-                updateSelectedTeamUI();
-            }
-        });
+    if(!shouldNotify || !claimed) continue;
+    try{
+      await messaging.send({
+        token:sub.id,
+        notification:{
+          title:TEST_MODE ? "🧪 مصر" : `🎟️ ${match.homeTeam} × ${match.awayTeam}`,
+          body:`التذاكر متاحة الآن! ${match.homeTeam} × ${match.awayTeam}`
+        },
+        data:{matchId:match.id,url:"https://www.tazkarti.com/#/matches"},
+        webpush:{fcmOptions:{link:"https://www.tazkarti.com/#/matches"}}
+      });
+      sent++;
+      await stateRef.set({available:true,claimedAt:null,token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
+    }catch(e){
+      await stateRef.set({available:false,claimedAt:null,token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});
+      console.error("FCM error",sub.id,e.code||e.message);
+      if(["messaging/registration-token-not-registered","messaging/invalid-registration-token"].includes(e.code))
+        await sub.ref.delete().catch(()=>{});
     }
+  }
+  return sent;
 }
 
-function updateSelectedTeamUI() {
-    const monitoringStatus = document.getElementById("monitoringStatus");
-    const matchesCard = document.getElementById("matchesCard");
-    const matchesList = document.getElementById("matchesList");
+const browser=await chromium.launch({headless:true});
+try{
+  const page=await browser.newPage();
+  console.log(TEST_MODE?"🧪 TEST MODE: مراقبة مباريات مصر":"🚀 NORMAL MODE: اكتشاف مباريات تذكرتي");
+  await page.goto(url,{waitUntil:"domcontentloaded",timeout:60000});
+  await page.waitForTimeout(8000);
+  const raw=await page.locator("body").innerText();
+  const candidates=await extractMatches(page);
+  let matches=dedupeMatches(candidates);
 
-    if (matchesCard) matchesCard.style.display = "block";
-    
-    if (monitoringStatus) {
-        monitoringStatus.innerHTML = `
-            <div style="margin-top:6px;">
-                <span class="status-badge active">🟢 نشطة</span><br>
-                <b>الفريق المختار:</b> <span style="color: var(--primary); font-weight:700;">${selectedTeamState}</span><br>
-                <b>آخر فحص:</b> منذ لحظات<br>
-                <b>حالة التذاكر:</b> <span style="color: var(--warning);">🟡 جاري المراقبة</span>
-            </div>
-        `;
-    }
+  if(TEST_MODE){
+    const egypt=matches.filter(m=>/مصر|egypt/i.test(`${m.homeTeam} ${m.awayTeam}`));
+    matches=egypt;
+    // Preserve the legacy test state expected by the UI/test workflow.
+    const testAvailable=matches.some(m=>m.available);
+    await db.doc("monitorState/test").set({
+      available:testAvailable,
+      teamFound:matches.length>0,
+      checkedAt:admin.firestore.FieldValue.serverTimestamp(),
+      mode:"test",
+      textSample:raw.slice(0,1200)
+    },{merge:true});
+  }
 
-    if (matchesList) {
-        matchesList.innerHTML = `
-            <div class="match-item" onclick="selectMatch('${selectedTeamState} × المنافس')">
-                <b>${selectedTeamState} × المنافس</b><br>
-                🏟 استاد القاهرة | 📅 قريباً
-            </div>
-        `;
-    }
+  console.log(`🔎 Matches discovered: ${matches.length}`);
+  for(const match of matches){
+    await db.doc(`matches/${match.id}`).set({
+      ...match,
+      checkedAt:admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt:admin.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+  }
 
-    if (currentDeviceToken) {
-        db.collection("pushSubscriptions").doc(currentDeviceToken).update({
-            selectedTeams: [selectedTeamState],
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }).catch(err => console.error(err));
-    }
-}
+  let sent=0;
+  // Process both available and unavailable states. This is what makes
+  // available -> false -> available generate a fresh notification.
+  for(const match of matches) sent+=await sendForMatch(match);
 
-if (!isNode) {
-    window.selectMatch = function(matchName) {
-        selectedMatchState = matchName;
-        alert("تم اختيار مراقبة مباراة: " + matchName);
-        if (currentDeviceToken) {
-            db.collection("pushSubscriptions").doc(currentDeviceToken).update({
-                selectedMatches: [selectedMatchState],
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(err => console.error(err));
-        }
-    };
-}
-
-function listenToUserSubscriptionChanges() {
-    if (!currentDeviceToken) return;
-    db.collection("pushSubscriptions").doc(currentDeviceToken).onSnapshot((doc) => {
-        if (doc.exists) {
-            console.log("Subscription synced:", doc.data());
-        }
-    }, (error) => {
-        console.error("Firestore listener error:", error);
-    });
-}
-
-// منطق الفحص الخلفي (GitHub Actions / Node.js)
-if (isNode) {
-    (async () => {
-        console.log("Starting ticket monitoring check...");
-        const TEST_MODE = process.env.TEST_MODE === "true";
-        try {
-            let pageContent = "";
-            if (TEST_MODE) {
-                pageContent = "Egypt vs South Africa Book Ticket Available";
-            } else {
-                const fetch = (await import('node-fetch')).default;
-                const response = await fetch("https://www.tazkarti.com/#/matches");
-                pageContent = await response.text();
-            }
-
-            const subscriptionsSnapshot = await db.collection("pushSubscriptions").get();
-            for (const doc of subscriptionsSnapshot.docs) {
-                const subData = doc.data();
-                const token = subData.token;
-                const selectedTeams = subData.selectedTeams || ["الأهلي"];
-
-                for (const team of selectedTeams) {
-                    const isTeamMentioned = pageContent.includes(team);
-                    const isAvailable = pageContent.includes("Book Ticket") || pageContent.includes("Available") || pageContent.includes("متوفرة");
-                    const isSoldOut = pageContent.includes("Sold Out") || pageContent.includes("غير متاح");
-                    const matchAvailable = isTeamMentioned && isAvailable && !isSoldOut;
-
-                    const statusRef = db.collection("ticketStatus").doc(team);
-                    const statusDoc = await statusRef.get();
-                    const lastStatus = statusDoc.exists ? statusDoc.data().available : false;
-
-                    if (matchAvailable && !lastStatus) {
-                        if (token) {
-                            const message = {
-                                token: token,
-                                notification: {
-                                    title: `${team}`,
-                                    body: `🎟️ تذاكر ${team} متاحة الآن! اضغط لفتح تذكرتي.`
-                                },
-                                webpush: {
-                                    fcmOptions: {
-                                        link: "https://www.tazkarti.com/#/matches"
-                                    }
-                                }
-                            };
-                            await admin.messaging().send(message);
-                        }
-                        await statusRef.set({ available: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                    } else if (!matchAvailable && lastStatus) {
-                        await statusRef.set({ available: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Error during monitoring check:", error);
-            process.exit(1);
-        }
-    })();
+  console.log(`📨 Notifications sent: ${sent}`);
+  console.log(JSON.stringify({testMode:TEST_MODE,matches:matches.map(m=>({id:m.id,teams:[m.homeTeam,m.awayTeam],available:m.available})),notifications:sent,checkedAt:new Date().toISOString()}));
+} finally {
+  await browser.close();
 }

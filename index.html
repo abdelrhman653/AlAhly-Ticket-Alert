@@ -1,235 +1,190 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منصة تنبيه تذاكر الفرق المصرية والمنتخب</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root {
-            --primary: #dc2626;
-            --primary-dark: #b91c1c;
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --card-border: #334155;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #22c55e;
-            --warning: #eab308;
-        }
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Cairo', sans-serif;
-        }
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 16px;
-        }
-        .container {
-            width: 100%;
-            max-width: 480px;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 24px;
-            padding: 24px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-        header {
-            text-align: center;
-            margin-bottom: 24px;
-        }
-        header h1 {
-            font-size: 1.5rem;
-            font-weight: 900;
-            color: var(--text-main);
-            margin-bottom: 8px;
-        }
-        header p {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-        .card {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 16px;
-        }
-        .section-title {
-            font-size: 1rem;
-            font-weight: 700;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .search-box {
-            position: relative;
-            margin-bottom: 12px;
-        }
-        .search-box input {
-            width: 100%;
-            padding: 12px 16px 12px 40px;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            color: var(--text-main);
-            font-size: 0.95rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .search-box input:focus {
-            border-color: var(--primary);
-        }
-        .search-box i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-        }
-        .teams-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .team-btn {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 10px 12px;
-            color: var(--text-main);
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-            text-align: right;
-        }
-        .team-btn:hover, .team-btn.active {
-            border-color: var(--primary);
-            background: rgba(220, 38, 38, 0.1);
-        }
-        .matches-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .match-item {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 10px;
-            padding: 10px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .match-item.selected {
-            border-color: var(--accent);
-            background: rgba(34, 197, 94, 0.1);
-        }
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 700;
-        }
-        .status-badge.active { background: rgba(34, 197, 94, 0.15); color: var(--accent); }
-        .status-badge.pending { background: rgba(234, 179, 8, 0.15); color: var(--warning); }
-        .status-badge.blocked { background: rgba(220, 38, 38, 0.15); color: var(--primary); }
-        
-        .btn-action {
-            width: 100%;
-            padding: 12px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .btn-action:hover {
-            background: var(--primary-dark);
-        }
-        .notification-status-box {
-            text-align: center;
-            padding: 12px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.03);
-            font-size: 0.9rem;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="منصة لمراقبة تذاكر مباريات الفرق المصرية ومنتخب مصر.">
+  <title>Ticket Alert Egypt | تنبيه تذاكر مصر</title>
+  <style>
+    :root{
+      --bg:#07111f;--surface:#0d1a2b;--surface2:#12233a;--line:#203550;
+      --text:#f5f8fc;--muted:#9db0c8;--primary:#e31b23;--primary2:#ff4650;
+      --green:#35d07f;--yellow:#f4c95d;--blue:#55a7ff;--danger:#ff6b6b;
+      --shadow:0 18px 50px rgba(0,0,0,.22);--radius:22px
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at 80% -10%,#173254 0,#07111f 38%);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;min-height:100vh}
+    button,input{font:inherit}
+    .app{width:min(100% - 28px,920px);margin:auto;padding:20px 0 42px}
+    .hero{padding:24px 4px 10px}
+    .brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:900;letter-spacing:.2px}
+    .brand-dot{width:13px;height:13px;border-radius:50%;background:var(--primary);box-shadow:0 0 24px rgba(227,27,35,.8)}
+    h1{font-size:clamp(28px,7vw,48px);line-height:1.1;margin:18px 0 10px}
+    .lead{color:var(--muted);font-size:16px;line-height:1.8;max-width:680px}
+    .grid{display:grid;grid-template-columns:1fr;gap:14px}
+    .card{background:linear-gradient(145deg,rgba(18,35,58,.96),rgba(10,24,40,.96));border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+    .card h2{font-size:19px;margin:0 0 14px}
+    .search{position:relative}
+    .search input{width:100%;background:#071525;border:1px solid var(--line);color:#fff;border-radius:16px;padding:15px 46px 15px 15px;outline:0}
+    .search input:focus{border-color:#4775a5;box-shadow:0 0 0 3px rgba(85,167,255,.12)}
+    .search span{position:absolute;right:15px;top:50%;transform:translateY(-50%);color:var(--muted)}
+    .chips{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}
+    .chip{border:1px solid var(--line);background:#0a1728;color:#fff;border-radius:999px;padding:10px 13px;cursor:pointer}
+    .chip.active{border-color:var(--primary);background:rgba(227,27,35,.13)}
+    .muted{color:var(--muted)}
+    .notification{display:flex;align-items:center;gap:14px}
+    .bell{font-size:30px}
+    .status{padding:13px 14px;border-radius:15px;background:#081525;border:1px solid var(--line);line-height:1.7}
+    .ok{color:var(--green)}.warn{color:var(--yellow)}.err{color:var(--danger)}.info{color:var(--blue)}
+    .btn{width:100%;border:0;border-radius:15px;padding:14px 16px;font-weight:850;cursor:pointer;transition:.18s transform,.18s opacity;margin-top:12px}
+    .btn:active{transform:scale(.985)}.btn:disabled{opacity:.55;cursor:not-allowed}
+    .primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
+    .ghost{background:#17283e;color:#fff;border:1px solid var(--line)}
+    .match{border:1px solid var(--line);background:#091728;border-radius:18px;padding:15px;margin-top:11px;cursor:pointer}
+    .match.selected{border-color:var(--primary);box-shadow:0 0 0 2px rgba(227,27,35,.13)}
+    .match-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .teams{font-weight:850;font-size:17px}.meta{color:var(--muted);font-size:13px;line-height:1.8;margin-top:7px}
+    .badge{white-space:nowrap;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:800}
+    .available{background:rgba(53,208,127,.12);color:var(--green)}.watching{background:rgba(244,201,93,.12);color:var(--yellow)}
+    .empty{text-align:center;padding:22px 8px;color:var(--muted);line-height:1.8}
+    .monitor-row{display:grid;grid-template-columns:1fr;gap:10px}
+    .stat{background:#081525;border:1px solid var(--line);border-radius:15px;padding:13px}
+    .stat b{display:block;margin-top:5px}
+    .footer{text-align:center;color:#71859e;font-size:12px;padding-top:18px}
+    .hidden{display:none!important}
+    @media(min-width:720px){.grid{grid-template-columns:1.1fr .9fr}.wide{grid-column:1/-1}.monitor-row{grid-template-columns:repeat(3,1fr)}}
+  </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🔴 Ticket Alert Egypt</h1>
-            <p>راقب تذاكر فريقك المفضلة ومنتخب مصر وكن أول من يعلم</p>
-        </header>
+<div class="app">
+  <header class="hero">
+    <div class="brand"><span class="brand-dot"></span> Ticket Alert Egypt</div>
+    <h1>راقب تذاكر فريقك<br>وخليك أول واحد يعرف.</h1>
+    <div class="lead">اختَر فريقًا مصريًا أو منتخب مصر، ثم حدد مباراة واحدة أو أكثر. المراقبة تعمل تلقائيًا حتى لو أغلقت الموقع.</div>
+  </header>
 
-        <!-- اختيار الفريق -->
-        <div class="card">
-            <div class="section-title"><i class="fa-solid fa-shield-halved"></i> ماذا تريد أن تراقب؟</div>
-            <div class="search-box">
-                <input type="text" id="teamSearch" placeholder="ابحث عن فريق أو منتخب...">
-                <i class="fa-solid fa-magnifying-glass"></i>
-            </div>
-            <div class="teams-grid" id="popularTeams">
-                <button class="team-btn" data-team="الأهلي">🔴 الأهلي</button>
-                <button class="team-btn" data-team="الزمالك">⚪ الزمالك</button>
-                <button class="team-btn" data-team="المصري">🟢 المصري</button>
-                <button class="team-btn" data-team="بيراميدز">🔵 بيراميدز</button>
-                <button class="team-btn" data-team="منتخب مصر">🇪🇬 منتخب مصر</button>
-            </div>
-        </div>
+  <main class="grid">
+    <section class="card">
+      <h2>🔎 ماذا تريد أن تراقب؟</h2>
+      <div class="search"><span>⌕</span><input id="teamSearch" autocomplete="off" placeholder="ابحث عن فريق أو منتخب"></div>
+      <div id="teamChips" class="chips"></div>
+      <div id="teamHint" class="muted" style="margin-top:12px">يتم اكتشاف الفرق من المباريات التي يجدها النظام على تذكرتي.</div>
+    </section>
 
-        <!-- اختيار المباراة -->
-        <div class="card" id="matchesCard" style="display:none;">
-            <div class="section-title"><i class="fa-solid fa-futbol"></i> مباريات الفريق المتاحة</div>
-            <div class="matches-list" id="matchesList">
-                <!-- يتم تعبئتها ديناميكياً -->
-            </div>
-        </div>
+    <section class="card">
+      <div class="notification">
+        <div class="bell">🔔</div>
+        <div><h2 style="margin-bottom:3px">حالة الإشعارات</h2><div id="notifyStatus" class="muted">جاري التحقق...</div></div>
+      </div>
+      <button id="notifyBtn" class="btn primary hidden">🔔 تفعيل الإشعارات</button>
+    </section>
 
-        <!-- حالة الإشعارات -->
-        <div class="card">
-            <div class="section-title"><i class="fa-solid fa-bell"></i> حالة الإشعارات</div>
-            <div id="notificationArea" class="notification-status-box">
-                جاري التحقق من الإشعارات...
-            </div>
-        </div>
+    <section class="card wide">
+      <h2>🏟️ مباريات <span id="selectedTeamLabel"></span></h2>
+      <div id="matches" class="empty">اختر فريقًا لعرض مبارياته.</div>
+      <button id="saveBtn" class="btn primary hidden">💾 حفظ المراقبة</button>
+    </section>
 
-        <!-- حالة المراقبة النشطة -->
-        <div class="card">
-            <div class="section-title"><i class="fa-solid fa-chart-line"></i> حالة المراقبة</div>
-            <div id="monitoringStatus" style="font-size: 0.9rem; color: var(--text-muted);">
-                لم يتم تحديد فريق للمراقبة بعد.
-            </div>
-        </div>
-    </div>
+    <section class="card wide">
+      <h2>📊 حالة المراقبة</h2>
+      <div id="monitor" class="monitor-row">
+        <div class="stat"><span class="muted">الحالة</span><b class="info">جاري التحميل...</b></div>
+      </div>
+    </section>
+  </main>
+  <div class="footer">تذكير: الموقع لا يحتاج أن يبقى مفتوحًا بعد تفعيل الإشعارات.</div>
+</div>
 
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="monitor.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, collection, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+import { getMessaging, getToken, isSupported } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-messaging.js";
+
+const firebaseConfig={apiKey:"AIzaSyAvv8kaOM_OITgKRcpe0xZD6AOv1oDyvTc",authDomain:"alahly-ticket-alert.firebaseapp.com",projectId:"alahly-ticket-alert",storageBucket:"alahly-ticket-alert.firebasestorage.app",messagingSenderId:"268954365381",appId:"1:268954365381:web:7d8b3a7bfda8d9e422efac"};
+const VAPID_KEY="BAYxVRbvvtkasJKgnU0Ja62KhC7aqsj2JBEdrinMHc0NywavCwCfucZfX00mq8UMYDe7jV-gLzMijc9ABAlVYQ";
+const SW_PATH="/AlAhly-Ticket-Alert/firebase-messaging-sw.js";
+const app=initializeApp(firebaseConfig),db=getFirestore(app);
+const $=id=>document.getElementById(id);
+const normalize=s=>(s||"").toString().replace(/\s+/g," ").replace(/[أإآ]/g,"ا").replace(/[أإآ]/g,"ا").trim().toLowerCase();
+const teamKey=s=>normalize(s).replace(/[^a-z0-9\u0600-\u06ff]+/g,"-").replace(/^-|-$/g,"");
+let token=localStorage.getItem("fcmToken")||"", selectedTeam=null, selectedMatches=new Set(), allMatches=[];
+
+const popular=[["الأهلي","🔴"],["الزمالك","⚪"],["بيراميدز","🔵"],["المصري","🟢"],["منتخب مصر","🇪🇬"]];
+function notificationText(html,cls=""){ $("notifyStatus").className=cls; $("notifyStatus").innerHTML=html; }
+function renderTeams(){
+  const q=normalize($("teamSearch").value);
+  const teams=new Map();
+  popular.forEach(([name,icon])=>teams.set(teamKey(name),{name,icon}));
+  allMatches.forEach(m=>[m.homeTeam,m.awayTeam].forEach(name=>{if(name)teams.set(teamKey(name),{name,icon:name.includes("مصر")||normalize(name).includes("egypt")?"🇪🇬":"⚽"})}));
+  const arr=[...teams.values()].filter(t=>!q||normalize(t.name).includes(q)).slice(0,30);
+  $("teamChips").innerHTML=arr.length?arr.map(t=>`<button class="chip ${selectedTeam&&teamKey(selectedTeam.name)===teamKey(t.name)?"active":""}" data-team="${encodeURIComponent(t.name)}">${t.icon} ${t.name}</button>`).join(""):`<div class="empty">لا يوجد فريق مطابق في البيانات المكتشفة حاليًا.</div>`;
+  $("teamChips").querySelectorAll(".chip").forEach(b=>b.onclick=()=>selectTeam(decodeURIComponent(b.dataset.team)));
+}
+function selectTeam(name){
+  selectedTeam={name,key:teamKey(name)}; selectedMatches=new Set(); $("selectedTeamLabel").textContent="— "+name; renderTeams(); renderMatches();
+}
+function renderMatches(){
+  if(!selectedTeam){$("matches").className="empty";$("matches").textContent="اختر فريقًا لعرض مبارياته."; $("saveBtn").classList.add("hidden"); return}
+  const list=allMatches.filter(m=>teamKey(m.homeTeam)===selectedTeam.key||teamKey(m.awayTeam)===selectedTeam.key);
+  if(!list.length){$("matches").className="empty";$("matches").textContent="لم يجد النظام مباريات متاحة لهذا الفريق على تذكرتي حتى الآن."; $("saveBtn").classList.remove("hidden");return}
+  $("matches").className="";
+  $("matches").innerHTML=list.map(m=>`<div class="match ${selectedMatches.has(m.id)?"selected":""}" data-id="${m.id}">
+    <div class="match-top"><div><div class="teams">${m.homeTeam||"—"} × ${m.awayTeam||"—"}</div><div class="meta">🏟 ${m.venue||"الملعب غير محدد"}<br>📅 ${m.date||"التاريخ غير محدد"} ${m.time?" • ⏰ "+m.time:""}</div></div>
+    <span class="badge ${m.available?"available":"watching"}">${m.available?"🟢 التذاكر متاحة":"🟡 جاري المراقبة"}</span></div></div>`).join("");
+  $("matches").querySelectorAll(".match").forEach(el=>el.onclick=()=>{const id=el.dataset.id;selectedMatches.has(id)?selectedMatches.delete(id):selectedMatches.add(id);renderMatches()});
+  $("saveBtn").classList.remove("hidden");
+}
+async function registerPush(){
+  if(!("Notification" in window)){notificationText("المتصفح لا يدعم إشعارات الويب.","err");return}
+  if(Notification.permission==="denied"){notificationText("⚠️ الإشعارات محظورة<br><span class='muted'>اسمح بالإشعارات من إعدادات المتصفح حتى تستقبل التنبيهات.</span>","warn");$("notifyBtn").classList.remove("hidden");return}
+  if(Notification.permission==="default"){$("notifyBtn").classList.remove("hidden");notificationText("فعّل الإشعارات مرة واحدة ليصبح جهازك جاهزًا للتنبيهات.","warn");return}
+  try{
+    if(!(await isSupported()))throw new Error("إشعارات Firebase غير مدعومة في هذا المتصفح.");
+    const registration=await navigator.serviceWorker.register(SW_PATH,{scope:"/AlAhly-Ticket-Alert/"});
+    const messaging=getMessaging(app);
+    const newToken=await getToken(messaging,{vapidKey:VAPID_KEY,serviceWorkerRegistration:registration});
+    if(!newToken)throw new Error("تعذر الحصول على FCM token.");
+    token=newToken;
+    localStorage.setItem("fcmToken",token);
+    const ref=doc(db,"pushSubscriptions",token), old=await getDoc(ref);
+    const data={token,selectedTeams:old.exists()?(old.data().selectedTeams||[]):[],selectedMatches:old.exists()?(old.data().selectedMatches||[]):[],updatedAt:serverTimestamp(),userAgent:navigator.userAgent};
+    if(!old.exists())data.createdAt=serverTimestamp();
+    await setDoc(ref,data,{merge:true});
+    notificationText("🔔 <b>الإشعارات مفعلة</b><br><span class='muted'>جهازك مسجل لاستقبال تنبيهات توفر التذاكر.</span>","ok");
+    $("notifyBtn").classList.add("hidden");
+  }catch(e){console.error(e);notificationText("⚠️ تعذر تجهيز الإشعارات: "+(e.message||"خطأ غير معروف"),"err")}
+}
+$("notifyBtn").onclick=async()=>{if(Notification.permission==="default"){const p=await Notification.requestPermission();if(p!=="granted"){await registerPush();return}}await registerPush()};
+$("teamSearch").oninput=renderTeams;
+$("saveBtn").onclick=async()=>{
+  if(!token){$("notifyBtn").click();return}
+  if(!selectedTeam){return}
+  const ref=doc(db,"pushSubscriptions",token);
+  const old=await getDoc(ref),d=old.exists()?old.data():{};
+  // No selected match = monitor the whole selected team.
+  // One or more selected matches = monitor only those matches.
+  const payload = selectedMatches.size
+    ? {selectedTeams:[],selectedMatches:[...selectedMatches]}
+    : {selectedTeams:[selectedTeam.key],selectedMatches:[]};
+  await setDoc(ref,{token,...payload,updatedAt:serverTimestamp()},{merge:true});
+  $("saveBtn").textContent="✅ تم حفظ المراقبة"; setTimeout(()=>$("saveBtn").textContent="💾 حفظ المراقبة",1800);
+};
+function renderMonitor(){
+  const selected=allMatches.filter(m=>selectedMatches.has(m.id));
+  $("monitor").innerHTML=selected.length?selected.map(m=>`<div class="stat"><span class="muted">الحالة</span><b class="${m.available?"ok":"warn"}">${m.available?"🟢 التذاكر متاحة الآن":"🟡 لا يوجد توفر حاليًا"}</b><small>${m.homeTeam} × ${m.awayTeam}<br>آخر فحص: ${m.checkedAt?.toDate?m.checkedAt.toDate().toLocaleString("ar-EG"):"غير معروف"}</small></div>`).join(""):`<div class="stat"><span class="muted">الحالة</span><b class="info">اختر مباراة واحدة على الأقل لعرض حالة المراقبة.</b></div>`;
+}
+function listenMatches(){
+  onSnapshot(collection(db,"matches"),snap=>{allMatches=snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>m.homeTeam&&m.awayTeam);renderTeams();renderMatches();renderMonitor()},err=>{$("matches").className="empty err";$("matches").textContent="⚠️ تعذر الحصول على آخر حالة للمباريات.";console.error(err)});
+}
+async function init(){
+  try{
+    await navigator.serviceWorker.register(SW_PATH,{scope:"/AlAhly-Ticket-Alert/"});
+    if(Notification.permission==="granted")await registerPush();else await registerPush();
+  }catch(e){console.error(e);notificationText("⚠️ تعذر تجهيز خدمة الإشعارات حاليًا.","err")}
+  listenMatches();
+}
+init();
+</script>
 </body>
 </html>
