@@ -1,219 +1,403 @@
 import { chromium } from "playwright";
 import admin from "firebase-admin";
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "{}");
-admin.initializeApp({credential: admin.credential.cert(serviceAccount)});
+const serviceAccount = JSON.parse(
+process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+);
+
+admin.initializeApp({
+credential: admin.credential.cert(serviceAccount)
+});
+
 const db = admin.firestore();
 const messaging = admin.messaging();
 
-const url = process.env.TAZKARTI_URL || "https://www.tazkarti.com/#/matches";
-const TEST_MODE = String(process.env.TEST_MODE || "false").toLowerCase() === "true";
+const url =
+process.env.TAZKARTI_URL ||
+"https://www.tazkarti.com/#/matches";
 
-const normalize = s => (s || "").toString()
-  .replace(/\s+/g, " ")
-  .replace(/[أإآ]/g, "ا")
-  .trim()
-  .toLowerCase();
+/*
+TEST_MODE=true
+= اختبار الإشعارات باستخدام مباراة مصر
 
-const key = s => normalize(s)
-  .replace(/[^a-z0-9\u0600-\u06ff]+/g, "-")
-  .replace(/^-|-$/g, "");
+TEST_MODE=false أو غير موجود
+= الوضع الطبيعي لمراقبة الأهلي
+*/
+const TEST_MODE =
+String(process.env.TEST_MODE || "false").toLowerCase() === "true";
 
-const unavailableWords = ["غير متاح","غير متاحة","sold out","نفدت","لا توجد تذاكر","not available"];
-const availableWords = ["احجز","حجز","شراء","book ticket","book now","buy","available","متاح","متاحة"];
+const normalize = s =>
+(s || "")
+.replace(/\s+/g, " ")
+.replace(/أ|إ|آ/g, "ا")
+.trim()
+.toLowerCase();
 
-const containsAny = (text, words) => words.some(w => normalize(text).includes(normalize(w)));
+/*
+الوضع الطبيعي: الأهلي
+*/
+const alAhlyWords = [
+"الاهلي",
+"al ahly",
+"al-ahly",
+"ahly"
+];
 
-function cleanTeam(s) {
-  return (s || "").replace(/\b(book|buy|available|sold out)\b/ig,"")
-    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g,"")
-    .replace(/\s+/g," ").trim().replace(/^[|•:–—-]+|[|•:–—-]+$/g,"").trim();
+/*
+وضع الاختبار: مصر
+*/
+const egyptWords = [
+"مصر",
+"egypt",
+"egypt national team",
+"منتخب مصر"
+];
+
+/*
+كلمات تدل على وجود إمكانية للحجز/الشراء
+*/
+const availableWords = [
+"احجز",
+"حجز",
+"شراء",
+"book",
+"buy",
+"available",
+"متاح",
+"متاحة",
+"tickets"
+];
+
+/*
+كلمات تدل على عدم وجود تذاكر
+*/
+const unavailableWords = [
+"غير متاح",
+"غير متاحة",
+"sold out",
+"نفدت",
+"لا توجد تذاكر"
+];
+
+function containsAny(text, words) {
+return words.some(word =>
+text.includes(normalize(word))
+);
 }
 
-function parseTeams(text) {
-  const lines = text.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+const browser = await chromium.launch({
+headless: true
+});
 
-  for (const line of lines) {
-    const m = line.match(/(.{2,50}?)\s+(?:vs\.?|v\.?|×|x)\s+(.{2,50}?)(?=\s*(?:\||•|$))/i);
-    if (m) {
-      const a=cleanTeam(m[1]), b=cleanTeam(m[2]);
-      if(a&&b&&a.length<60&&b.length<60) return [a,b];
-    }
-  }
+try {
 
-  const compact = text
-    .replace(/\b(?:book\s+ticket|book\s+now|book|buy|available|sold\s*out|احجز|حجز|شراء|متاح|متاحة)\b/ig," ")
-    .replace(/\s+/g," ").trim();
+const page = await browser.newPage();
 
-  const patterns = [
-    /(.{2,50}?)\s+(?:vs\.?|v\.?|×|x)\s+(.{2,50}?)(?=\s*(?:\||•|\d{1,2}[\/-]\d{1,2}|$))/i,
-    /(.{2,50}?)\s+[-–—]\s+(.{2,50}?)(?=\s*(?:\||•|\d{1,2}[\/-]\d{1,2}|$))/i
-  ];
-  for (const re of patterns) {
-    const m=compact.match(re);
-    if(m){
-      const a=cleanTeam(m[1]),b=cleanTeam(m[2]);
-      if(a&&b&&a.length<60&&b.length<60) return [a,b];
-    }
-  }
+console.log(
+TEST_MODE
+? "🧪 TEST MODE: مراقبة مباراة مصر"
+: "🔴 NORMAL MODE: مراقبة الأهلي"
+);
 
-  const candidates=lines.filter(line=>{
-    const n=normalize(line);
-    return line.length>=2 && line.length<=60 &&
-      !containsAny(n,availableWords) &&
-      !containsAny(n,unavailableWords) &&
-      !/\b\d{1,2}[\/-]\d{1,2}\b/.test(line) &&
-      !/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/.test(line) &&
-      !/استاد|ملعب|stadium|venue|arena/i.test(line);
-  });
-  if(candidates.length>=2) return [cleanTeam(candidates[0]),cleanTeam(candidates[1])];
-  return [null,null];
-}
-function parseDateTime(text) {
-  const date=(text.match(/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b/)||[])[0]||"";
-  const time=(text.match(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/)||[])[0]||"";
-  return {date,time};
-}
+console.log("🌐 فتح تذكرتي:", url);
 
-function makeId(home,away,text) {
-  return key(`${home}-${away}-${parseDateTime(text).date||text.slice(0,50)}`);
-}
+await page.goto(url, {
+waitUntil: "domcontentloaded",
+timeout: 60000
+});
 
-async function extractMatches(page) {
-  return page.evaluate(({availableWords, unavailableWords}) => {
-    const norm=s=>(s||"").replace(/\s+/g," ").trim().toLowerCase();
-    const avail=availableWords.map(norm), unavail=unavailableWords.map(norm);
-    const isAvail=t=>avail.some(w=>norm(t).includes(w)) && !unavail.some(w=>norm(t).includes(w));
-    const nodes=[...document.querySelectorAll("a,button,[role='button']")];
-    const candidates=[];
-    for(const node of nodes){
-      const label=(node.innerText||node.textContent||"").trim();
-      if(!label) continue;
-      let el=node, best=null;
-      for(let i=0;i<5&&el;i++,el=el.parentElement){
-        const text=(el.innerText||"").trim();
-        if(text.length>=20&&text.length<=900){best=text;if(isAvail(text))break}
+/*
+ننتظر تحميل محتوى الصفحة الديناميكي
+*/
+await page.waitForTimeout(8000);
+
+/*
+قراءة الصفحة
+*/
+const raw =
+await page.locator("body").innerText();
+
+const text =
+normalize(raw);
+
+/*
+اختيار الفريق حسب وضع التشغيل
+*/
+const targetWords =
+TEST_MODE
+? egyptWords
+: alAhlyWords;
+
+const teamFound =
+containsAny(text, targetWords);
+
+const hasAvailable =
+containsAny(text, availableWords);
+
+const hasUnavailable =
+containsAny(text, unavailableWords);
+
+const available =
+teamFound &&
+hasAvailable &&
+!hasUnavailable;
+
+/*
+اسم حالة المراقبة
+*/
+const stateName =
+TEST_MODE
+? "test"
+: "alahly";
+
+const stateRef =
+db.doc("monitorState/${stateName}");
+
+/*
+قراءة الحالة السابقة
+*/
+const oldSnap =
+await stateRef.get();
+
+const old =
+oldSnap.exists
+? oldSnap.data()
+: {};
+
+const hadPreviousState =
+oldSnap.exists &&
+typeof old.available === "boolean";
+
+const wasAvailable =
+hadPreviousState
+? Boolean(old.available)
+: false;
+
+console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+console.log(
+"📊 الحالة السابقة:",
+hadPreviousState
+? wasAvailable
+? "🟢 متاح"
+: "🟡 غير متاح"
+: "⚪ لا توجد حالة سابقة"
+);
+
+console.log(
+"🔎 المباراة موجودة:",
+teamFound ? "✅ نعم" : "❌ لا"
+);
+
+console.log(
+"🎟️ يوجد توفر:",
+available ? "✅ نعم" : "❌ لا"
+);
+
+console.log(
+"━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+/*
+تحديد هل نحتاج إرسال إشعار
+*/
+const shouldNotify =
+available && !wasAvailable;
+
+if (shouldNotify) {
+
+console.log(
+  "🚨 اكتشاف توفر جديد!"
+);
+
+console.log(
+  "🔔 سيتم إرسال الإشعار الآن..."
+);
+
+
+/*
+  جلب الأجهزة المسجلة
+*/
+const snap =
+  await db
+    .collection("pushSubscriptions")
+    .get();
+
+
+const tokens =
+  snap.docs
+    .map(doc => doc.id)
+    .filter(Boolean);
+
+
+console.log(
+  `📱 عدد الأجهزة المسجلة: ${tokens.length}`
+);
+
+
+let sentCount = 0;
+let failedCount = 0;
+
+
+/*
+  إرسال الإشعار لكل جهاز
+*/
+for (const token of tokens) {
+
+  try {
+
+    await messaging.send({
+
+      token,
+
+      notification: {
+
+        title: TEST_MODE
+          ? "🧪 اختبار إشعارات تذكرتي"
+          : "🔴 تذاكر الأهلي متاحة",
+
+        body: TEST_MODE
+          ? "🇪🇬 تم اكتشاف مباراة مصر مع توفر تذاكر للحجز الآن 🔔"
+          : "🎟️ تم اكتشاف توفر محتمل لتذاكر الأهلي. افتح تذكرتي الآن."
+      },
+
+
+      webpush: {
+
+        fcmOptions: {
+
+          link:
+            "https://www.tazkarti.com/#/matches"
+
+        }
+
       }
-      if(best) candidates.push({text:best,booking:isAvail(best)});
-    }
-    const cards=[...document.querySelectorAll("[class*='match'],[class*='event'],[class*='card']")].map(el=>({text:(el.innerText||"").trim(),booking:isAvail(el.innerText||"")})).filter(x=>x.text.length>=20&&x.text.length<=900);
-    return [...candidates,...cards].slice(0,300);
-  },{availableWords,unavailableWords});
-}
 
-function dedupeMatches(raw) {
-  const out=new Map();
-  for(const item of raw){
-    const text=item.text.replace(/\s+/g," ").trim();
-    const [home,away]=parseTeams(text);
-    if(!home||!away) continue;
-    const {date,time}=parseDateTime(text);
-    const unavailable=containsAny(text,unavailableWords);
-    const available=Boolean(item.booking)&&!unavailable;
-    const venueLine=(text.split(/[\n|•]/).find(x=>/استاد|stadium|arena|ملعب/i.test(x))||"").trim();
-    const id=makeId(home,away,text);
-    const previous=out.get(id);
-    out.set(id,{
-      id,homeTeam:home,awayTeam:away,date,time,
-      venue:venueLine.replace(/^(الملعب|stadium|venue)\s*[:：-]?\s*/i,"")||"الملعب غير محدد",
-      available:previous?previous.available||available:available,
-      sourceText:text.slice(0,1500)
-    });
-  }
-  return [...out.values()];
-}
-
-async function sendForMatch(match) {
-  const subs=await db.collection("pushSubscriptions").get();
-  let sent=0;
-  for(const sub of subs.docs){
-    const d=sub.data(), teams=Array.isArray(d.selectedTeams)?d.selectedTeams:[], matches=Array.isArray(d.selectedMatches)?d.selectedMatches:[];
-    const interested=matches.includes(match.id) || teams.includes(key(match.homeTeam)) || teams.includes(key(match.awayTeam));
-    if(!interested) continue;
-
-    const stateId=key(`${sub.id}-${match.id}`);
-    const stateRef=db.doc(`notificationStates/${stateId}`);
-    let shouldNotify=false;
-    let claimed=false;
-    await db.runTransaction(async tx=>{
-      const snap=await tx.get(stateRef);
-      const state=snap.exists?snap.data():{};
-      const previous=typeof state.available==="boolean" ? Boolean(state.available) : false;
-      const claimAt=state.claimedAt?.toMillis ? state.claimedAt.toMillis() : 0;
-      const claimFresh=claimAt && (Date.now()-claimAt < 10*60*1000);
-
-      shouldNotify=match.available&&!previous&&!claimFresh;
-      if(!match.available){
-        tx.set(stateRef,{available:false,claimedAt:null,token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
-      } else if(shouldNotify){
-        claimed=true;
-        tx.set(stateRef,{available:false,claimedAt:admin.firestore.Timestamp.now(),token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
-      }
     });
 
-    if(!shouldNotify || !claimed) continue;
-    try{
-      await messaging.send({
-        token:sub.id,
-        notification:{
-          title:TEST_MODE ? "🧪 مصر" : `🎟️ ${match.homeTeam} × ${match.awayTeam}`,
-          body:`التذاكر متاحة الآن! ${match.homeTeam} × ${match.awayTeam}`
-        },
-        data:{matchId:match.id,url:"https://www.tazkarti.com/#/matches"},
-        webpush:{fcmOptions:{link:"https://www.tazkarti.com/#/matches"}}
-      });
-      sent++;
-      await stateRef.set({available:true,claimedAt:null,token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true});
-    }catch(e){
-      await stateRef.set({available:false,claimedAt:null,token:sub.id,matchId:match.id,checkedAt:admin.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});
-      console.error("FCM error",sub.id,e.code||e.message);
-      if(["messaging/registration-token-not-registered","messaging/invalid-registration-token"].includes(e.code))
-        await sub.ref.delete().catch(()=>{});
+
+    sentCount++;
+
+
+    console.log(
+      "✅ تم إرسال الإشعار إلى جهاز."
+    );
+
+
+  } catch (e) {
+
+    failedCount++;
+
+
+    console.error(
+      "❌ فشل إرسال الإشعار:",
+      e.code || e.message
+    );
+
+
+    /*
+      حذف التوكنات القديمة أو غير الصالحة
+    */
+    if (
+      [
+        "messaging/registration-token-not-registered",
+        "messaging/invalid-registration-token"
+      ].includes(e.code)
+    ) {
+
+      await db
+        .collection("pushSubscriptions")
+        .doc(token)
+        .delete()
+        .catch(() => {});
+
+
+      console.log(
+        "🗑️ تم حذف Token غير صالح."
+      );
     }
   }
-  return sent;
 }
 
-const browser=await chromium.launch({headless:true});
-try{
-  const page=await browser.newPage();
-  console.log(TEST_MODE?"🧪 TEST MODE: مراقبة مباريات مصر":"🚀 NORMAL MODE: اكتشاف مباريات تذكرتي");
-  await page.goto(url,{waitUntil:"domcontentloaded",timeout:60000});
-  await page.waitForTimeout(8000);
-  const raw=await page.locator("body").innerText();
-  const candidates=await extractMatches(page);
-  let matches=dedupeMatches(candidates);
 
-  if(TEST_MODE){
-    const egypt=matches.filter(m=>/مصر|egypt/i.test(`${m.homeTeam} ${m.awayTeam}`));
-    matches=egypt;
-    // Preserve the legacy test state expected by the UI/test workflow.
-    const testAvailable=matches.some(m=>m.available);
-    await db.doc("monitorState/test").set({
-      available:testAvailable,
-      teamFound:matches.length>0,
-      checkedAt:admin.firestore.FieldValue.serverTimestamp(),
-      mode:"test",
-      textSample:raw.slice(0,1200)
-    },{merge:true});
-  }
+console.log(
+  `📨 نتيجة الإرسال: ${sentCount} ناجح / ${failedCount} فشل`
+);
 
-  console.log(`🔎 Matches discovered: ${matches.length}`);
-  for(const match of matches){
-    await db.doc(`matches/${match.id}`).set({
-      ...match,
-      checkedAt:admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt:admin.firestore.FieldValue.serverTimestamp()
-    },{merge:true});
-  }
+} else if (available && wasAvailable) {
 
-  let sent=0;
-  // Process both available and unavailable states. This is what makes
-  // available -> false -> available generate a fresh notification.
-  for(const match of matches) sent+=await sendForMatch(match);
+console.log(
+  "ℹ️ التذاكر ما زالت متاحة."
+);
 
-  console.log(`📨 Notifications sent: ${sent}`);
-  console.log(JSON.stringify({testMode:TEST_MODE,matches:matches.map(m=>({id:m.id,teams:[m.homeTeam,m.awayTeam],available:m.available})),notifications:sent,checkedAt:new Date().toISOString()}));
+console.log(
+  "🔕 لن يتم إرسال إشعار مكرر."
+);
+
+} else {
+
+console.log(
+  "🟡 لا يوجد توفر حاليًا."
+);
+
+}
+
+/*
+حفظ الحالة بعد تنفيذ منطق التنبيه
+*/
+await stateRef.set(
+{
+available,
+
+  teamFound,
+
+  checkedAt:
+    admin.firestore.FieldValue.serverTimestamp(),
+
+  mode:
+    TEST_MODE
+      ? "test"
+      : "alahly",
+
+  textSample:
+    raw.slice(0, 1200)
+},
+{
+  merge: true
+}
+
+);
+
+console.log(
+"💾 تم حفظ حالة المراقبة في Firestore."
+);
+
+console.log(
+JSON.stringify({
+
+  mode:
+    TEST_MODE
+      ? "TEST"
+      : "ALAHLY",
+
+  teamFound,
+
+  available,
+
+  previousAvailable:
+    wasAvailable,
+
+  notificationTriggered:
+    shouldNotify,
+
+  checkedAt:
+    new Date().toISOString()
+
+})
+
+);
+
 } finally {
-  await browser.close();
+
+await browser.close();
+
 }
