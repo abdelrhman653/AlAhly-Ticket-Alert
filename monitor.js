@@ -1,4 +1,4 @@
-here// التهيئة والتكوين الثابت للمشروع (بدون تغيير بروجكت فيرايربيس أو الـ VAPID Key)
+// التهيئة والتكوين الثابت للمشروع
 const firebaseConfig = {
     apiKey: "AIzaSyD-PlaceholderKeyForSafety",
     authDomain: "alahly-ticket-alert.firebaseapp.com",
@@ -14,10 +14,12 @@ if (!firebase.apps.length) {
 
 const messaging = firebase.messaging();
 const db = firebase.firestore();
-const VAPID_KEY = "BEl62iUYgUivxIkv69yViEui...VapidKeyPlaceholder"; // مفتاحك الأصلي
+
+// مفتاح الـ VAPID الحقيقي الخاص بك
+const VAPID_KEY = "BAYxVRbvvtkasJKgnU0Ja62KhC7aqsjv2JBEdrinMHc0NywavCwCfucZfX00mq8UMYDe7jV-gLzMijc9ABAlVYQ";
 
 let currentDeviceToken = null;
-let selectedTeamState = null;
+let selectedTeamState = "الأهلي"; // الفريق الافتراضي
 let selectedMatchState = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -25,7 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupUIEvents();
 });
 
-// إدارة تهيئة الإشعارات والـ FCM Token بشكل تلقائي دون إزعاج
+// إدارة تهيئة الإشعارات والـ FCM Token تلقائياً دون إزعاج المستخدم بطلبات متكررة
 async function initNotifications() {
     const notificationArea = document.getElementById("notificationArea");
     
@@ -83,9 +85,13 @@ async function syncUserSubscriptionToFirestore() {
     if (!doc.exists) {
         await docRef.set({
             token: currentDeviceToken,
-            selectedTeams: selectedTeamState ? [selectedTeamState] : [],
+            selectedTeams: [selectedTeamState],
             selectedMatches: selectedMatchState ? [selectedMatchState] : [],
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } else {
+        await docRef.update({
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     }
@@ -126,10 +132,9 @@ function updateSelectedTeamUI() {
         </div>
     `;
 
-    // محاكاة جلب المباريات الخاصة بالفريق المحدد من المنظومة أو Tazkarti
     matchesList.innerHTML = `
-        <div class="match-item" onclick="selectMatch('${selectedTeamState} × المنافس التقليدي')">
-            <b>${selectedTeamState} × المنافس التقليدي</b><br>
+        <div class="match-item" onclick="selectMatch('${selectedTeamState} × المنافس')">
+            <b>${selectedTeamState} × المنافس</b><br>
             🏟 استاد القاهرة | 📅 قريباً
         </div>
     `;
@@ -157,8 +162,7 @@ function listenToUserSubscriptionChanges() {
     if (!currentDeviceToken) return;
     db.collection("pushSubscriptions").doc(currentDeviceToken).onSnapshot((doc) => {
         if (doc.exists) {
-            const data = doc.data();
-            console.log("Updated user subscription data:", data);
+            console.log("Subscription synced:", doc.data());
         }
     }, (error) => {
         console.error("Firestore listener error:", error);
