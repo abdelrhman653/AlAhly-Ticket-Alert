@@ -7,87 +7,84 @@
   <title>تنبيه تذاكر الأهلي</title>
 
   <style>
-    * {
-      box-sizing: border-box;
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      font-family:Arial,sans-serif;
+      background:#0f1115;
+      color:#fff
     }
 
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0f1115;
-      color: #fff;
+    .wrap{
+      max-width:560px;
+      margin:auto;
+      padding:22px
     }
 
-    .wrap {
-      max-width: 560px;
-      margin: auto;
-      padding: 22px;
+    .card{
+      background:#181b22;
+      border:1px solid #2a2f38;
+      border-radius:20px;
+      padding:20px;
+      margin:14px 0
     }
 
-    .card {
-      background: #181b22;
-      border: 1px solid #2a2f38;
-      border-radius: 20px;
-      padding: 20px;
-      margin: 14px 0;
+    h1{
+      margin:0 0 8px;
+      font-size:28px
     }
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 28px;
+    p{
+      color:#bfc5cf;
+      line-height:1.7
     }
 
-    p {
-      color: #bfc5cf;
-      line-height: 1.7;
+    button,a{
+      display:block;
+      width:100%;
+      padding:14px;
+      border:0;
+      border-radius:14px;
+      text-align:center;
+      text-decoration:none;
+      font-weight:700;
+      font-size:16px;
+      margin-top:10px;
+      cursor:pointer
     }
 
-    button,
-    a {
-      display: block;
-      width: 100%;
-      padding: 14px;
-      border: 0;
-      border-radius: 14px;
-      text-align: center;
-      text-decoration: none;
-      font-weight: 700;
-      font-size: 16px;
-      margin-top: 10px;
-      cursor: pointer;
+    .primary{
+      background:#b40000;
+      color:#fff
     }
 
-    .primary {
-      background: #b40000;
-      color: #fff;
+    .secondary{
+      background:#2a2f38;
+      color:#fff
     }
 
-    .secondary {
-      background: #2a2f38;
-      color: #fff;
+    .status{
+      padding:12px;
+      border-radius:12px;
+      background:#222732;
+      margin-top:12px
     }
 
-    .status {
-      padding: 12px;
-      border-radius: 12px;
-      background: #222732;
-      margin-top: 12px;
+    .ok{
+      color:#72e6a2
     }
 
-    .ok {
-      color: #72e6a2;
+    .warn{
+      color:#ffd166
     }
 
-    .warn {
-      color: #ffd166;
+    .err{
+      color:#ff7777
     }
 
-    .err {
-      color: #ff7777;
-    }
-
-    small {
-      color: #8e96a3;
+    small{
+      color:#8e96a3
     }
   </style>
 </head>
@@ -97,6 +94,7 @@
 <div class="wrap">
 
   <div class="card">
+
     <h1>🔴 تنبيه تذاكر الأهلي</h1>
 
     <p>
@@ -120,6 +118,7 @@
     <div id="status" class="status">
       جاري التحقق...
     </div>
+
   </div>
 
 
@@ -161,12 +160,19 @@ import {
 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAvv8waOM_OITgKRcpe0xZD6AOv1oDyvTc",
+
+  apiKey: "AIzaSyAvv8yaOM_OITgKRcpe0xZD6AOv1oDyvTc",
+
   authDomain: "alahly-ticket-alert.firebaseapp.com",
+
   projectId: "alahly-ticket-alert",
+
   storageBucket: "alahly-ticket-alert.firebasestorage.app",
+
   messagingSenderId: "268954365381",
+
   appId: "1:268954365381:web:7d8b3a7bfda8d9e422efac"
+
 };
 
 
@@ -216,6 +222,7 @@ btn.addEventListener("click", async () => {
     const supported =
       await isSupported();
 
+
     if (!supported) {
 
       throw new Error(
@@ -228,6 +235,7 @@ btn.addEventListener("click", async () => {
     const permission =
       await Notification.requestPermission();
 
+
     if (permission !== "granted") {
 
       throw new Error(
@@ -238,11 +246,17 @@ btn.addEventListener("click", async () => {
 
 
     /*
-      GitHub Pages يستخدم مسار المشروع:
+      مهم جدًا مع GitHub Pages
+
+      الموقع يعمل داخل:
+
       /AlAhly-Ticket-Alert/
 
-      لذلك يجب تسجيل Service Worker
-      من داخل نفس المسار.
+      لذلك لا نستخدم:
+
+      /firebase-messaging-sw.js
+
+      لأن ذلك يبحث في جذر github.io.
     */
 
     const registration =
@@ -278,11 +292,7 @@ btn.addEventListener("click", async () => {
 
 
     await setDoc(
-      doc(
-        db,
-        "pushSubscriptions",
-        token
-      ),
+      doc(db, "pushSubscriptions", token),
       {
         createdAt: Date.now(),
         userAgent: navigator.userAgent
@@ -294,6 +304,7 @@ btn.addEventListener("click", async () => {
       "تم تفعيل الإشعارات على هذا الجهاز ✅",
       "ok"
     );
+
 
   } catch (e) {
 
@@ -311,11 +322,7 @@ btn.addEventListener("click", async () => {
 
 
 onSnapshot(
-  doc(
-    db,
-    "monitorState",
-    "alahly"
-  ),
+  doc(db, "monitorState", "alahly"),
   snap => {
 
     if (!snap.exists()) {
@@ -328,29 +335,23 @@ onSnapshot(
     }
 
 
-    const d =
-      snap.data();
+    const d = snap.data();
 
 
     const time =
       d.checkedAt?.toDate
-        ? d.checkedAt
-            .toDate()
-            .toLocaleString("ar-EG")
+        ? d.checkedAt.toDate().toLocaleString("ar-EG")
         : "غير معروف";
 
 
     monitorEl.innerHTML =
       d.available
 
-        ? '<span class="ok">🟢 تم اكتشاف توفر محتمل للتذاكر.</span><br>آخر فحص: ' +
-          time
+        ? '<span class="ok">🟢 تم اكتشاف توفر محتمل للتذاكر.</span><br>آخر فحص: ' + time
 
-        : '<span class="warn">🟡 لا يوجد توفر مؤكد حاليًا.</span><br>آخر فحص: ' +
-          time;
+        : '<span class="warn">🟡 لا يوجد توفر مؤكد حاليًا.</span><br>آخر فحص: ' + time;
 
   }
-
 );
 
 </script>
