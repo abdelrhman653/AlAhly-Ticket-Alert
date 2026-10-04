@@ -35,6 +35,10 @@
       font-size:28px
     }
 
+    h3{
+      margin-top:0
+    }
+
     p{
       color:#bfc5cf;
       line-height:1.7
@@ -68,7 +72,8 @@
       padding:12px;
       border-radius:12px;
       background:#222732;
-      margin-top:12px
+      margin-top:12px;
+      line-height:1.8
     }
 
     .ok{
@@ -83,8 +88,24 @@
       color:#ff7777
     }
 
+    .info{
+      color:#66b3ff
+    }
+
     small{
-      color:#8e96a3
+      color:#8e96a3;
+      line-height:1.7
+    }
+
+    .test-badge{
+      display:inline-block;
+      background:#7a4d00;
+      color:#ffd166;
+      padding:6px 10px;
+      border-radius:10px;
+      font-size:12px;
+      font-weight:bold;
+      margin-bottom:10px
     }
   </style>
 </head>
@@ -97,9 +118,13 @@
 
     <h1>🔴 تنبيه تذاكر الأهلي</h1>
 
+    <div class="test-badge">
+      🧪 وضع الاختبار — مباراة مصر
+    </div>
+
     <p>
-      فعّل الإشعارات وسيتم تنبيهك عند اكتشاف توفر تذاكر الأهلي
-      على الصفحة التي تتم مراقبتها.
+      فعّل الإشعارات وسيتم تنبيهك عند اكتشاف توفر تذاكر
+      للمباراة التي تتم مراقبتها.
     </p>
 
     <button id="notifyBtn" class="primary">
@@ -116,7 +141,7 @@
     </a>
 
     <div id="status" class="status">
-      جاري التحقق...
+      جاري التحقق من الإشعارات...
     </div>
 
   </div>
@@ -124,14 +149,15 @@
 
   <div class="card">
 
-    <h3>حالة المراقبة</h3>
+    <h3>🇪🇬 حالة مباراة مصر</h3>
 
-    <div id="monitorStatus">
-      لم يتم استلام حالة بعد.
+    <div id="monitorStatus" class="status">
+      جاري استلام حالة المراقبة...
     </div>
 
     <small>
-      المراقبة الخلفية تعمل من خلال GitHub Actions وفق الجدول المحدد في المشروع.
+      هذه الصفحة تعرض حاليًا حالة الاختبار من
+      monitorState/test.
     </small>
 
   </div>
@@ -180,16 +206,21 @@ const VAPID_KEY =
   "BAYxVRbvvtkasJKgnU0Ja62KhC7aqsjv2JBEdrinMHc0NywavCwCfucZfX00mq8UMYDe7jV-gLzMijc9ABAlVYQ";
 
 
-const app = initializeApp(firebaseConfig);
+const app =
+  initializeApp(firebaseConfig);
 
-const db = getFirestore(app);
+
+const db =
+  getFirestore(app);
 
 
 const statusEl =
   document.getElementById("status");
 
+
 const monitorEl =
   document.getElementById("monitorStatus");
+
 
 const btn =
   document.getElementById("notifyBtn");
@@ -205,6 +236,10 @@ function setStatus(text, cls = "") {
 
 }
 
+
+/*
+  تفعيل إشعارات الهاتف
+*/
 
 btn.addEventListener("click", async () => {
 
@@ -244,20 +279,6 @@ btn.addEventListener("click", async () => {
 
     }
 
-
-    /*
-      مهم جدًا مع GitHub Pages
-
-      الموقع يعمل داخل:
-
-      /AlAhly-Ticket-Alert/
-
-      لذلك لا نستخدم:
-
-      /firebase-messaging-sw.js
-
-      لأن ذلك يبحث في جذر github.io.
-    */
 
     const registration =
       await navigator.serviceWorker.register(
@@ -321,37 +342,95 @@ btn.addEventListener("click", async () => {
 });
 
 
+/*
+  قراءة حالة اختبار مباراة مصر
+
+  monitor.js في TEST_MODE
+  يحفظ الحالة في:
+
+  monitorState/test
+*/
+
 onSnapshot(
-  doc(db, "monitorState", "alahly"),
+  doc(db, "monitorState", "test"),
   snap => {
 
     if (!snap.exists()) {
 
-      monitorEl.textContent =
-        "لم تبدأ المراقبة بعد.";
+      monitorEl.innerHTML =
+        '<span class="warn">🟡 لم يتم إجراء فحص اختبار حتى الآن.</span>';
 
       return;
 
     }
 
 
-    const d = snap.data();
+    const d =
+      snap.data();
 
 
-    const time =
-      d.checkedAt?.toDate
-        ? d.checkedAt.toDate().toLocaleString("ar-EG")
-        : "غير معروف";
+    let time =
+      "غير معروف";
+
+
+    if (d.checkedAt?.toDate) {
+
+      time =
+        d.checkedAt
+          .toDate()
+          .toLocaleString("ar-EG");
+
+    }
+
+
+    let html = "";
+
+
+    /*
+      هل تم العثور على مباراة مصر؟
+    */
+
+    if (d.teamFound) {
+
+      html +=
+        '<span class="ok">🇪🇬 🟢 تم العثور على مباراة مصر.</span><br>';
+
+    } else {
+
+      html +=
+        '<span class="warn">🇪🇬 🟡 لم يتم العثور على مباراة مصر في آخر فحص.</span><br>';
+
+    }
+
+
+    /*
+      هل يوجد توفر للتذاكر؟
+    */
+
+    if (d.available) {
+
+      html +=
+        '<span class="ok">🎟️ 🟢 تم اكتشاف توفر محتمل للتذاكر.</span><br>';
+
+    } else {
+
+      html +=
+        '<span class="warn">🎟️ 🟡 لا يوجد توفر مؤكد حاليًا.</span><br>';
+
+    }
+
+
+    html +=
+      '<span class="info">🕐 آخر فحص: ' +
+      time +
+      '</span>';
 
 
     monitorEl.innerHTML =
-      d.available
-
-        ? '<span class="ok">🟢 تم اكتشاف توفر محتمل للتذاكر.</span><br>آخر فحص: ' + time
-
-        : '<span class="warn">🟡 لا يوجد توفر مؤكد حاليًا.</span><br>آخر فحص: ' + time;
+      html;
 
   }
+
 );
 
 </script>
